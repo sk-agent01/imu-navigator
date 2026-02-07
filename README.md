@@ -46,7 +46,7 @@ Pure IMU integration drifts badly (~1m/s² error accumulating over time). We mit
 
 ## Requirements
 
-- Android 7.0+ (API 24)
+- Android 8.0+ (API 26)
 - Device with accelerometer and gyroscope sensors
 - Internet connection (for map tiles and routing)
 
