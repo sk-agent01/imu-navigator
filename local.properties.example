@@ -1,0 +1,10 @@
+# Example local.properties file
+# Copy to local.properties and update paths
+
+# Path to Android SDK
+sdk.dir=/path/to/android-sdk
+
+# Example:
+# sdk.dir=/home/user/Android/Sdk
+# sdk.dir=/Users/user/Library/Android/sdk
+# sdk.dir=C:\\Users\\user\\AppData\\Local\\Android\\Sdk
