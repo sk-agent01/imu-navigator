@@ -15,30 +15,40 @@ Android navigation app that uses ONLY accelerometer + gyroscope for position tra
 
 ## How It Works
 
-### Dead Reckoning Algorithm
+### Simplified 1D Navigation
 
-The app uses smartphone IMU sensors (accelerometer + gyroscope) to estimate movement:
+**Key Insight:** Since the user follows a pre-calculated route, we only need 1D navigation along the route curve — not full 2D dead reckoning!
 
-1. **Accelerometer** - Detects acceleration in device frame, transformed to world frame
-2. **Gyroscope** - Tracks device orientation/heading changes
-3. **Sensor Fusion** - Combines both to estimate velocity and heading
-4. **Route Constraint** - Projects estimated position onto the route polyline
+**Algorithm:**
+```
+distance_traveled = 0
+while navigating:
+    speed = estimate_speed_from_imu()      # m/s
+    distance_traveled += speed * dt         # Integrate speed
+    position = route.get_point_at(distance) # Project onto route
+    update_map(position)
+```
 
-### Drift Mitigation
+### Speed Estimation from IMU
 
-Pure IMU integration drifts badly (~1m/s² error accumulating over time). We mitigate this by:
+1. **Forward Acceleration** - Remove gravity, integrate acceleration
+2. **Vibration Analysis** - Road noise correlates with vehicle speed
+3. **Kalman Filter** - Fuses acceleration and vibration estimates
+4. **Zero Velocity Updates** - Detects stops to reset drift
 
-- **Route Projection** - Position is always snapped to the route polyline
-- **Zero Velocity Updates (ZVU)** - Detecting stops resets velocity to zero
-- **Speed Clamping** - Maximum speed limits prevent runaway integration
-- **Low-pass Filtering** - Reduces sensor noise before integration
+### Why This Works Better
+
+- **1D vs 2D** - Only need to track distance along route, not position in plane
+- **No Heading Drift** - Route direction is known, no gyro integration needed
+- **Constrained Error** - Position error only accumulates along route, not perpendicular
+- **Self-Correcting** - Speed estimation errors average out over distance
 
 ### Limitations
 
-- **Starting Point** - User must manually set the starting position (no GPS)
-- **Drift Accumulation** - Position estimate becomes less accurate over time
-- **Phone Orientation** - Best results when phone is mounted stably in vehicle
-- **No Off-Route Detection** - App assumes you follow the calculated route
+- **Route Following Required** - User must stay on the calculated route
+- **Starting Point** - User sets starting position manually (no GPS)
+- **Speed Drift** - Accumulated distance may drift over long distances
+- **Phone Mounting** - Best with phone mounted stably in vehicle
 
 ## Screenshots
 
@@ -103,24 +113,37 @@ app/src/main/java/com/imunavigator/
 
 ## Technical Details
 
-### Sensor Processing
+### Speed Estimation Pipeline
 
-- Accelerometer and gyroscope data at maximum sample rate
-- Complementary filter for orientation estimation
-- Low-pass filter on accelerometer to reduce noise
-- Rotation matrix from Android's rotation vector sensor (if available)
+```kotlin
+// 1. Get acceleration without gravity
+forwardAccel = transformToWorldFrame(accelerometer) 
 
-### Position Integration
+// 2. Zero Velocity Detection (ZVU)
+if (accelMagnitude < 0.4 && gyroMagnitude < 0.08):
+    speed = 0  // Vehicle is stopped
 
+// 3. Kalman Filter Update
+predictedSpeed = speed + forwardAccel * dt
+vibrationSpeed = estimateFromRoadNoise(accelHistory)
+speed = kalmanFuse(predictedSpeed, vibrationSpeed)
+
+// 4. Integrate to distance
+distanceTraveled += speed * dt
 ```
-velocity += acceleration * dt  (with gravity removed)
-position += velocity * dt
-distance_on_route += speed * dt
-```
+
+### Sensors Used
+
+| Sensor | Purpose |
+|--------|---------|
+| Accelerometer | Forward acceleration for speed integration |
+| Gyroscope | Motion detection for ZVU |
+| Rotation Vector | Gravity direction for acceleration transform |
+| Linear Acceleration | Pre-filtered acceleration (if available) |
 
 ### Route Projection
 
-The estimated position is continuously projected onto the nearest point of the route polyline, constraining all drift to forward/backward movement along the known path.
+Position is simply the point at `distanceTraveled` meters along the route polyline. Binary search finds the correct segment, then linear interpolation within the segment.
 
 ## Contributing
 
